@@ -1,43 +1,39 @@
 use bytes::{Bytes, BytesMut};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::Error;
 use std::result::Result;
 use tokio_util::codec::Decoder;
 
-pub fn encode_message<T: Serialize>(obj: T) -> Result<String, Error> {
-    let j = serde_json::to_string(&obj)?;
-    Ok(format!("Content-Length: {}\r\n\r\n{}", j.len(), j))
+pub fn frame_message<T: Serialize>(obj: T) -> Result<Bytes, Error> {
+    let j = serde_json::to_vec(&obj)?;
+    let header = format!("Content-Length: {}\r\n\r\n", j.len());
+
+    let mut buf = BytesMut::with_capacity(header.len() + j.len());
+    buf.extend_from_slice(header.as_bytes());
+    buf.extend_from_slice(&j);
+    Ok(buf.freeze())
 }
 
-#[derive(Debug, Deserialize)]
-pub struct BaseMessage {
-    pub method: String,
-}
+pub fn unframe_message(msg: Bytes) -> Result<Bytes, Box<dyn std::error::Error>> {
+    let pos = msg
+        .windows(4)
+        .position(|w| w == b"\r\n\r\n")
+        .ok_or("Invalid message")?;
 
-impl BaseMessage {
-    pub fn from_bytes(msg: Bytes) -> Result<(Self, Bytes), Box<dyn std::error::Error>> {
-        let pos = msg
-            .windows(4)
-            .position(|w| w == b"\r\n\r\n")
-            .ok_or("Invalid message")?;
+    let header = &msg.slice(..pos);
+    let header_str = str::from_utf8(header)?;
+    let size: usize = header_str
+        .strip_prefix("Content-Length: ")
+        .ok_or("Missing Content-Length header")?
+        .parse()?;
 
-        let header = &msg.slice(..pos);
-        let header_str = str::from_utf8(header)?;
-        let size: usize = header_str
-            .strip_prefix("Content-Length: ")
-            .ok_or("Missing Content-Length header")?
-            .parse()?;
-
-        if msg.len() < pos + 4 + size {
-            return Err("Incomplete message".into());
-        }
-
-        let content = msg.slice(pos + 4..pos + 4 + size);
-
-        let msg_obj = serde_json::from_slice::<Self>(&content)?;
-
-        Ok((msg_obj, content))
+    if msg.len() < pos + 4 + size {
+        return Err("Incomplete message".into());
     }
+
+    let content = msg.slice(pos + 4..pos + 4 + size);
+
+    Ok(content)
 }
 
 pub struct LspDecoder;
@@ -90,7 +86,7 @@ mod test {
         fn test_encode() {
             let expected = String::from("Content-Length: 16\r\n\r\n{\"testing\":true}");
             let actual =
-                encode_message(EncodingExample { testing: true }).expect("unexpected error");
+                frame_message(EncodingExample { testing: true }).expect("unexpected error");
             assert_eq!(actual, expected)
         }
 
@@ -99,7 +95,7 @@ mod test {
             let mut map = HashMap::new();
             map.insert(vec![1, 2, 3], "value"); // should fail because of a non string key
 
-            let result = encode_message(&map);
+            let result = frame_message(&map);
 
             assert!(result.is_err())
         }

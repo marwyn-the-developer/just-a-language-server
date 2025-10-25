@@ -1,2 +1,2 @@
-pub mod initialize;
+pub mod handler;
 pub mod messages;
