@@ -2,17 +2,27 @@ use std::error::Error;
 
 use futures::StreamExt;
 use log::{debug, error};
+use serde::Deserialize;
 use tokio::io::{stdin, stdout, AsyncWriteExt, BufWriter};
 use tokio_util::codec::FramedRead;
 
 use crate::{
-    lsp::{handler::JustLspHandlers, messages::core::Request},
+    lsp::{
+        handler::JustLspDispatcher,
+        messages::core::{Notification, Request},
+    },
     rpc::codec::{frame_message, unframe_message, LspDecoder},
 };
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum Message {
+    Request(Request),
+    Notification(Notification),
+}
 
 #[derive(Default)]
 pub struct JsonRpcServer {
-    handler: JustLspHandlers,
+    handler: JustLspDispatcher,
 }
 
 impl JsonRpcServer {
@@ -43,14 +53,9 @@ impl JsonRpcServer {
             };
 
             debug!("Request content: {}", String::from_utf8_lossy(&content));
-            let req: Request = match serde_json::from_slice(&content) {
-                Ok(m) => m,
-                Err(e) => {
-                    error!("Error while parsing request: {}", e);
-                    continue;
-                }
-            };
-            let res = self.handler.dispatch(req);
+            let msg: Message = serde_json::from_slice(&content)?;
+
+            let res = self.handler.dispatch(&msg);
 
             let res_json = match frame_message(res) {
                 Ok(m) => m,

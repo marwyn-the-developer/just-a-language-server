@@ -42,18 +42,19 @@ pub struct Response {
     pub error: Option<ResponseError>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum NotificationMessageParams {
-    Array(Vec<Value>),
-    Object(Map<String, Value>),
-}
+//#[derive(Debug, Clone, Serialize, Deserialize)]
+//#[serde(untagged)]
+//pub enum NotificationMessageParams {
+//    Array(Vec<Value>),
+//    Object(Map<String, Value>),
+//}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde_with::skip_serializing_none]
-pub struct NotificationMessage {
+pub struct Notification {
     pub jsonrpc: String,
-    pub method: String,
-    pub params: Option<NotificationMessageParams>,
+    pub method: Method,
+    //pub params: Option<NotificationMessageParams>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -122,4 +123,7 @@ pub enum Method {
     Shutdown,
     #[serde(rename = "exit")]
     Exit,
+
+    #[serde(rename = "workspace/semanticTokens/refresh")]
+    WorkspaceSemanticRefresh,
 }

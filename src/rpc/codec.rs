@@ -106,17 +106,16 @@ mod test {
         #[test]
         fn test_decode() {
             let incoming_msg = b"Content-Length: 17\r\n\r\n{\"method\":\"test\"}";
-            let (actual_msg, content) =
-                BaseMessage::from_bytes(Bytes::copy_from_slice(incoming_msg))
-                    .expect("unexpected error");
-            assert_eq!(actual_msg.method, "test");
-            assert_eq!(content, Bytes::from_static(b"{\"method\":\"test\"}"));
+            let msg =
+                unframe_message(Bytes::copy_from_slice(incoming_msg)).expect("unexpected error");
+
+            assert_eq!(msg, Bytes::from_static(b"{\"method\":\"test\"}"));
         }
 
         #[test]
         fn test_invalid_message() {
             let incoming_msg = b"Content-Length: 17{\"method\":\"test\"}";
-            let result = BaseMessage::from_bytes(Bytes::copy_from_slice(incoming_msg));
+            let result = unframe_message(Bytes::copy_from_slice(incoming_msg));
             assert!(result.is_err());
 
             let err = result.unwrap_err();
@@ -126,7 +125,7 @@ mod test {
         #[test]
         fn test_missing_content_length() {
             let incoming_msg = b"\r\n\r\n{\"method\":\"test\"}";
-            let result = BaseMessage::from_bytes(Bytes::copy_from_slice(incoming_msg));
+            let result = unframe_message(Bytes::copy_from_slice(incoming_msg));
             assert!(result.is_err());
 
             let err = result.unwrap_err();
@@ -135,19 +134,13 @@ mod test {
         #[test]
         fn test_invalid_content_length() {
             let incoming_msg = b"Content-Length: 1z7\r\n\r\n{\"method\":\"test\"}";
-            let result = BaseMessage::from_bytes(Bytes::copy_from_slice(incoming_msg));
-            assert!(result.is_err());
-        }
-        #[test]
-        fn test_invalid_json_content() {
-            let incoming_msg = b"Content-Length: 18\r\n\r\n{\"method\":\"test\",}";
-            let result = BaseMessage::from_bytes(Bytes::copy_from_slice(incoming_msg));
+            let result = unframe_message(Bytes::copy_from_slice(incoming_msg));
             assert!(result.is_err());
         }
         #[test]
         fn test_incomplete_message() {
             let incoming_msg = b"Content-Length: 17\r\n\r\n{\"method\":\"test\"";
-            let result = BaseMessage::from_bytes(Bytes::copy_from_slice(incoming_msg));
+            let result = unframe_message(Bytes::copy_from_slice(incoming_msg));
             assert!(result.is_err());
 
             let err = result.unwrap_err();
