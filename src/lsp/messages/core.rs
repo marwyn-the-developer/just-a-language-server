@@ -53,6 +53,7 @@ pub struct Response {
 #[serde_with::skip_serializing_none]
 pub struct Notification {
     pub jsonrpc: String,
+    #[serde(flatten)]
     pub method: Method,
     //pub params: Option<NotificationMessageParams>,
 }
@@ -110,6 +111,9 @@ pub mod error_codes {
     pub const REQUEST_CANCELLED: i32 = -32800;
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EmptyParams {}
+
 /// Represents all LSP request and notification methods
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "method", content = "params")]
@@ -118,7 +122,7 @@ pub enum Method {
     #[serde(rename = "initialize")]
     Initialize(InitializeParams),
     #[serde(rename = "initialized")]
-    Initialized,
+    Initialized(EmptyParams),
     #[serde(rename = "shutdown")]
     Shutdown,
     #[serde(rename = "exit")]

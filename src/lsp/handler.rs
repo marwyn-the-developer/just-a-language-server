@@ -24,15 +24,19 @@ impl Default for JustLspDispatcher {
         }
     }
 }
+pub trait Dispatcher {
+    fn dispatch(&self, message: &Message) -> Option<Response>;
+}
 pub struct JustLspDispatcher {
     initialize: InitializeHandler,
 }
-
 impl JustLspDispatcher {
     pub fn new() -> Self {
         Self::default()
     }
-    pub fn dispatch(&self, message: &Message) -> Option<Response> {
+}
+impl Dispatcher for JustLspDispatcher {
+    fn dispatch(&self, message: &Message) -> Option<Response> {
         let result = match message.method() {
             Method::Initialize(params) => Some(self.initialize.handle(params)),
             _ => None,
@@ -70,7 +74,7 @@ impl JustLspDispatcher {
 #[cfg(test)]
 mod test {
     use crate::lsp::messages::{
-        core::{Id, Notification, Request},
+        core::{EmptyParams, Id, Notification, Request},
         initialize::{ClientCapabilities, InitializeParams},
     };
 
@@ -111,7 +115,7 @@ mod test {
     fn test_incoming_notifaction() {
         let notif = Notification {
             jsonrpc: String::from("2.0"),
-            method: Method::Initialized,
+            method: Method::Initialized(EmptyParams {}),
         };
         let msg = Message::Notification(notif);
         let dispatcher = JustLspDispatcher::default();
