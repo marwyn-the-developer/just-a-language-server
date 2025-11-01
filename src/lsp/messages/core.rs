@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::fmt::{Display, Formatter, Result};
 
-use crate::lsp::messages::initialize::InitializeParams;
+use crate::lsp::messages::{
+    initialize::InitializeParams, text_document::did_open::DidOpenTextDocumentParams,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -130,4 +132,7 @@ pub enum Method {
 
     #[serde(rename = "workspace/semanticTokens/refresh")]
     WorkspaceSemanticRefresh,
+
+    #[serde(rename = "textDocument/didOpen")]
+    TextDocumentDidOpen(DidOpenTextDocumentParams),
 }

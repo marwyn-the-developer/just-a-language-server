@@ -1,12 +1,14 @@
 use crate::{
     lsp::{
         handler::initialize::InitializeHandler,
+        handler::text_document::did_open::TextDocumentDidOpenHandler,
         messages::core::{error_codes, Method, Response, ResponseError},
     },
     rpc::server::Message,
 };
 
 pub mod initialize;
+pub mod text_document;
 
 impl Message {
     fn method(&self) -> &Method {
@@ -17,19 +19,15 @@ impl Message {
     }
 }
 
-impl Default for JustLspDispatcher {
-    fn default() -> Self {
-        Self {
-            initialize: InitializeHandler,
-        }
-    }
-}
 pub trait Dispatcher {
     fn dispatch(&self, message: &Message) -> Option<Response>;
 }
+
+#[derive(Default)]
 pub struct JustLspDispatcher {
-    initialize: InitializeHandler,
+    text_document_did_open: TextDocumentDidOpenHandler,
 }
+
 impl JustLspDispatcher {
     pub fn new() -> Self {
         Self::default()
@@ -38,7 +36,11 @@ impl JustLspDispatcher {
 impl Dispatcher for JustLspDispatcher {
     fn dispatch(&self, message: &Message) -> Option<Response> {
         let result = match message.method() {
-            Method::Initialize(params) => Some(self.initialize.handle(params)),
+            Method::Initialize(params) => Some(InitializeHandler::handle(params)),
+            Method::TextDocumentDidOpen(params) => {
+                self.text_document_did_open.handle(params);
+                None
+            }
             _ => None,
         };
 

@@ -3,7 +3,7 @@ use std::error::Error;
 use futures::StreamExt;
 use log::{debug, error};
 use serde::Deserialize;
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufWriter};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio_util::codec::FramedRead;
 
 use crate::{
@@ -47,17 +47,10 @@ where
 
     pub async fn start(mut self) -> Result<(), Box<dyn Error>> {
         let mut framed = FramedRead::new(self.reader, LspDecoder);
-        //let mut writer = BufWriter::new(self.writer);
-        println!("Starting server loop");
         while let Some(message) = framed.next().await {
-            println!("Got a message from framed");
             let msg = match message {
-                Ok(m) => {
-                    println!("Message decoded OK");
-                    m
-                }
+                Ok(m) => m,
                 Err(e) => {
-                    println!("Decode error: {}", e);
                     error!("Error while retrieving message: {}", e);
                     continue;
                 }
@@ -76,14 +69,7 @@ where
             let res = self.handler.dispatch(&msg);
 
             if let Some(r) = res {
-                let res_json = match frame_message(r) {
-                    Ok(m) => m,
-                    Err(e) => {
-                        error!("Error while framing response: {}", e);
-                        continue;
-                    }
-                };
-                debug!("Response content: {}", String::from_utf8_lossy(&res_json));
+                let res_json = frame_message(r)?;
                 self.writer.write_all(&res_json).await?;
                 self.writer.flush().await?;
                 debug!("Sent response");
@@ -91,7 +77,6 @@ where
                 debug!("Notification handled")
             }
         }
-        println!("Loop exited");
         Ok(())
     }
 }
@@ -107,10 +92,7 @@ mod tests {
     use tokio::io::AsyncWrite;
 
     use crate::{
-        lsp::{
-            handler::Dispatcher,
-            messages::core::{Id, Response},
-        },
+        lsp::{handler::Dispatcher, messages::core::Response},
         rpc::server::{JsonRpcServer, Message},
     };
 
@@ -118,12 +100,15 @@ mod tests {
 
     impl Dispatcher for MockDispatcher {
         fn dispatch(&self, message: &Message) -> Option<Response> {
-            Some(Response {
-                jsonrpc: "2.0".to_string(),
-                id: Some(Id::String("1234".to_string())),
-                result: None,
-                error: None,
-            })
+            match message {
+                Message::Request(r) => Some(Response {
+                    jsonrpc: "2.0".to_string(),
+                    id: Some(r.clone().id),
+                    result: None,
+                    error: None,
+                }),
+                Message::Notification(_) => None,
+            }
         }
     }
 
@@ -144,7 +129,7 @@ mod tests {
     impl AsyncWrite for SpyWriter {
         fn poll_write(
             self: std::pin::Pin<&mut Self>,
-            cx: &mut std::task::Context<'_>,
+            _cx: &mut std::task::Context<'_>,
             buf: &[u8],
         ) -> std::task::Poll<Result<usize, std::io::Error>> {
             self.buffer.lock().unwrap().extend_from_slice(buf);
@@ -153,14 +138,14 @@ mod tests {
 
         fn poll_flush(
             self: std::pin::Pin<&mut Self>,
-            cx: &mut std::task::Context<'_>,
+            _cx: &mut std::task::Context<'_>,
         ) -> Poll<Result<(), std::io::Error>> {
             Poll::Ready(Ok(()))
         }
 
         fn poll_shutdown(
             self: std::pin::Pin<&mut Self>,
-            cx: &mut std::task::Context<'_>,
+            _cx: &mut std::task::Context<'_>,
         ) -> Poll<Result<(), std::io::Error>> {
             Poll::Ready(Ok(()))
         }
@@ -192,5 +177,26 @@ mod tests {
         );
 
         assert_eq!(*result, expected.as_bytes());
+    }
+
+    #[tokio::test]
+    async fn test_handle_notification() {
+        let json_notification = r#"{"jsonrpc":"2.0","method":"initialized","params":{}}"#;
+        let incoming_msg = format!(
+            "Content-Length: {}\r\n\r\n{}",
+            json_notification.len(),
+            json_notification
+        );
+
+        let input = Cursor::new(incoming_msg.into_bytes());
+        let (output, buffer) = SpyWriter::new();
+        let handler = MockDispatcher {};
+        let server = JsonRpcServer::new(handler, input, output);
+        server.start().await.unwrap();
+
+        let result = buffer.lock().unwrap();
+        let expected: Vec<u8> = Vec::new();
+
+        assert_eq!(*result, expected);
     }
 }
