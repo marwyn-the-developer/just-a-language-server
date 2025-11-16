@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
-use serde_with::skip_serializing_none;
 
-use crate::lsp::messages::core::Notification;
+use crate::lsp::messages::{core::Notification, text_document::TextDocumentItem};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -15,14 +14,4 @@ pub struct DidOpenTextDocumentNotification {
 #[serde(rename_all = "camelCase")]
 pub struct DidOpenTextDocumentParams {
     pub text_document: TextDocumentItem,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[skip_serializing_none]
-#[serde(rename_all = "camelCase")]
-pub struct TextDocumentItem {
-    pub uri: String,
-    pub language_id: String,
-    pub version: i32,
-    pub text: String,
 }
